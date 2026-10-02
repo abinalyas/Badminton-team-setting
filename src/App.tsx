@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   checkIn,
+  comingOnCount,
   compromises,
   defaultSettings,
   leave,
@@ -64,9 +65,9 @@ function migrate(saved: SessionState): SessionState {
   if (saved.settings.rulesVersion === defaultSettings.rulesVersion) return saved;
   return {
     ...saved,
+    opening: 0,
     settings: {
       ...saved.settings,
-      winnersStay: defaultSettings.winnersStay,
       maxConsecutive: defaultSettings.maxConsecutive,
       rulesVersion: defaultSettings.rulesVersion,
     },
@@ -133,8 +134,7 @@ export default function App() {
   const notHere = roster.filter((r) => !presentNames.has(r.toLowerCase()));
   const present = Object.values(state.players);
   const compromising = compromises(state);
-  // How many people from the front of the queue go on after the current game.
-  const comingOnCount = !state.court ? 4 : state.opening === 2 ? 0 : state.opening === 1 || state.settings.winnersStay ? 2 : 4;
+  const goingOn = comingOnCount(state);
   const needed = 4 - present.length;
 
   return (
@@ -157,9 +157,9 @@ export default function App() {
             </div>
             {state.opening ? (
               <p className="notice">
-                {state.opening === 2
-                  ? "Opening game 1 of 2: the first four play each other twice."
-                  : "Opening game 2 of 2: the winners stay on for game 3 against the next two."}
+                {state.opening > 1
+                  ? `Opening game ${state.settings.maxConsecutive - state.opening + 1} of ${state.settings.maxConsecutive}: the first four play each other.`
+                  : `Last opening game: the winners stay on for one more game against the next two.`}
               </p>
             ) : null}
             {compromising.length > 0 && (
@@ -231,7 +231,7 @@ export default function App() {
           <ol className="queue">
             {state.queue.map((id, i) => {
               const p = state.players[id];
-              const comingOn = i < comingOnCount;
+              const comingOn = i < goingOn;
               return (
                 <li key={id} className={comingOn ? "next" : ""}>
                   <span className="pos">{i + 1}</span>
@@ -325,15 +325,7 @@ export default function App() {
       <section className="card">
         <h2>Rules</h2>
         <label className="row between">
-          <span>Winners keep playing (optional)</span>
-          <input
-            type="checkbox"
-            checked={state.settings.winnersStay}
-            onChange={(e) => update({ ...state, settings: { ...state.settings, winnersStay: e.target.checked } })}
-          />
-        </label>
-        <label className="row between">
-          <span>First four play two games together</span>
+          <span>First four play the opening games</span>
           <input
             type="checkbox"
             checked={state.settings.openingFour !== false}
@@ -349,10 +341,9 @@ export default function App() {
           />
         </label>
         <label className="row between">
-          <span>Max games in a row</span>
+          <span>Games in a row per turn</span>
           <select
             value={state.settings.maxConsecutive}
-            disabled={!state.settings.winnersStay}
             onChange={(e) =>
               update({ ...state, settings: { ...state.settings, maxConsecutive: Number(e.target.value) } })
             }
@@ -365,16 +356,15 @@ export default function App() {
           </select>
         </label>
         <p className="muted small">
-          The first four play two games, and the game 2 winners stay on for game 3. After that, all four come off
-          after every game and the next four in line go on, so winning only matters for game 3. Turn on "winners
-          keep playing" if you want winners to stay on (up to {state.settings.maxConsecutive} in a row).
+          The first four play {state.settings.maxConsecutive} games together and the winners of the last one stay
+          for one more. After that, every team plays {state.settings.maxConsecutive} games in a row, win or lose,
+          then comes off, and the next two in line take the other side.
         </p>
         <div className="row">
           <button className="ghost" onClick={startNewSession}>
             New session
           </button>
-          {(state.settings.winnersStay !== defaultSettings.winnersStay ||
-            state.settings.maxConsecutive !== defaultSettings.maxConsecutive ||
+          {(state.settings.maxConsecutive !== defaultSettings.maxConsecutive ||
             state.settings.keepPairs === false ||
             state.settings.openingFour === false) && (
             <button
@@ -399,10 +389,10 @@ function TeamBox({ label, team, state }: { label: string; team: Team; state: Ses
         return (
           <strong key={id}>
             {p.name}
-            {state.settings.winnersStay && p.streak > 0 && (
+            {p.streak > 0 && (
               <span className="streak">
                 {" "}
-                · game {p.streak + 1}/{state.settings.maxConsecutive}
+                · game {p.streak + 1} of {p.limit ?? state.settings.maxConsecutive}
               </span>
             )}
           </strong>

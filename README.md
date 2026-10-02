@@ -12,18 +12,18 @@ line, so you don't have to work out by hand who plays next.
    arrivals play earlier.
 2. **Opening games.** When 4 people are present, the first 4 in line go on
    court and play **two games against each other**. Nobody else comes on yet.
-   The winners of game 2 stay on for game 3 against the next 2 in line, then
-   come off. This applies to the opening four only.
-3. **After game 3, winning no longer matters.** All four come off after
-   every game and the next 4 in line go on. People who have played fewer games
-   rejoin the line ahead of those who have played more, so everyone gets games.
+3. **Game 3: the only place winning matters.** The winners of game 2 stay on
+   and play the next 2 in line. The losers of game 2 go to the back of the line.
+4. **After game 3, only the game 2 winners come off.** The 2 people who came on
+   for game 3 have only played one game, so they stay for a second game against
+   the next 2 in line.
+5. **Everyone plays two games in a row, win or lose.** After its second game a
+   team comes off and the next 2 in line take the other side, and so on.
+6. **Fairness.** People coming off rejoin the line, and whoever has played fewer
+   games goes first. Late arrivals join the back of the line.
 
-Winning only affects game 3, so the first four have no lasting advantage beyond
-getting on court first and playing the opening games.
-
-Optional: turn on **Winners keep playing** in Rules to use a winners-stay
-rotation after the opening (losers go to the back, the next 2 challenge, and a
-pair comes off after 2 games in a row; the cap can be 2, 3 or 4).
+Winning only decides who gets the extra third game, so the first four have no
+lasting advantage beyond getting on court first.
 
 ### Usual pairs
 
@@ -36,8 +36,8 @@ pairs**. Pairs are saved with the session, so you set them up once.
   shows a note saying so), so the first-come advantage is unchanged.
 - Turn it off with **Keep usual pairs together** in the Rules card.
 
-The **Rules** card has switches for the opening games, usual pairs and the
-optional winners-keep-playing rotation.
+The **Rules** card has switches for the opening games and usual pairs, and the
+number of games in a row (2, 3 or 4).
 
 ## Features
 

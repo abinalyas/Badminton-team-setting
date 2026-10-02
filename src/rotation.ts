@@ -1,13 +1,14 @@
 // Court rotation rules for a drop-in doubles session.
 //
 // - Players join a single first-come-first-served queue when they check in.
-// - The first 4 in the queue go on court as soon as 4 people are present.
-// - After each game the winners stay on (up to `maxConsecutive` games in a row)
-//   and the losers go to the back of the queue. The next players in the queue
-//   fill the empty spots.
-// - Anyone who reaches `maxConsecutive` games in a row comes off, win or lose,
-//   so the "winners stay" advantage works the same for every group, not just
-//   the first one.
+// - The first 4 in the queue go on court as soon as 4 people are present, and play
+//   `maxConsecutive` games against each other (the opening games).
+// - The winners of the last opening game stay for one more game against the next 2 in the
+//   queue. This is the only place where winning matters.
+// - After that every team plays `maxConsecutive` games in a row, win or lose, then comes off.
+//   A team that has just come on stays for its second game, and the next 2 in the queue
+//   challenge it. So after game 3 only the opening winners come off.
+// - People coming off rejoin the queue; whoever has played fewer games goes first.
 
 export interface Player {
   id: string;
@@ -17,6 +18,8 @@ export interface Player {
   wins: number;
   /** Games played in a row during the current stint on court. */
   streak: number;
+  /** Games allowed in the current stint on court. Defaults to `maxConsecutive`; +1 for the opening winners. */
+  limit?: number;
 }
 
 export type Team = [string, string];
@@ -33,12 +36,12 @@ export interface FinishedGame extends Game {
 }
 
 export interface Settings {
+  /** Games each team plays in a row before coming off, and the number of opening games. */
   maxConsecutive: number;
-  winnersStay: boolean;
   /** Usual pairs, by player name. Optional so older saved sessions still load. */
   pairs?: Array<[string, string]>;
   keepPairs?: boolean;
-  /** The first four play games 1 and 2 together; game 2's winners stay for game 3. Default on. */
+  /** The first four play the opening games together; the last one's winners stay for one more. Default on. */
   openingFour?: boolean;
   /** Bumped when default rules change, so saved sessions can be migrated. */
   rulesVersion?: number;
@@ -51,17 +54,16 @@ export interface SessionState {
   court: Game | null;
   history: FinishedGame[];
   settings: Settings;
-  /** Opening games left for the first four: 2 = game 1 on court, 1 = game 2 on court, 0/undefined = normal rotation. */
+  /** Opening games left for the first four, including the one on court. 0/undefined = normal rotation. */
   opening?: number;
 }
 
 export const defaultSettings: Settings = {
   maxConsecutive: 2,
-  winnersStay: false,
   pairs: [],
   keepPairs: true,
   openingFour: true,
-  rulesVersion: 2,
+  rulesVersion: 3,
 };
 
 export function newSession(settings: Settings = defaultSettings): SessionState {
@@ -140,7 +142,8 @@ export function fillCourt(state: SessionState, now: number): SessionState {
   if (state.court || state.queue.length < 4) return state;
   const four = state.queue.slice(0, 4);
   const [teamA, teamB] = makeTeams(state, four);
-  const opening = state.history.length === 0 && state.settings.openingFour !== false ? 2 : 0;
+  const opening =
+    state.history.length === 0 && state.settings.openingFour !== false ? state.settings.maxConsecutive : 0;
   return { ...state, queue: state.queue.slice(4), court: { teamA, teamB, startedAt: now }, opening };
 }
 
@@ -163,42 +166,51 @@ export function recordResult(state: SessionState, winner: "A" | "B", now: number
 
   const history = [...state.history, { ...game, winner, finishedAt: now }];
 
-  // Opening game 1: the same four stay on for game 2, nobody from the queue comes on yet.
-  if (state.opening === 2) {
-    return { ...state, players, history, opening: 1, court: { ...game, startedAt: now } };
+  const max = state.settings.maxConsecutive;
+
+  // Opening games: the same four stay on, nobody from the queue comes on yet.
+  if ((state.opening ?? 0) > 1) {
+    return { ...state, players, history, opening: (state.opening ?? 0) - 1, court: { ...game, startedAt: now } };
   }
 
-  // Opening game 2: the winners always stay for game 3 against the next two, then come off.
-  const openingGame2 = state.opening === 1;
-  // After the opening, winning only matters if "winners stay" is switched on in Rules.
-  const winnersStay =
-    openingGame2 ||
-    (state.settings.winnersStay && winners.every((id) => players[id].streak < state.settings.maxConsecutive));
+  // A team stays while everyone on it still has games left in their stint. The winners of the last
+  // opening game are the one exception: they get one extra game (limit + 1) against the next two.
+  const lastOpening = state.opening === 1;
+  if (lastOpening) {
+    for (const id of winners) players[id] = { ...players[id], limit: max + 1 };
+  }
+  const stays = (team: Team) => team.every((id) => players[id].streak < (players[id].limit ?? max));
+  const staying = lastOpening ? [winners] : ([game.teamA, game.teamB] as Team[]).filter(stays);
+  const leaving = onCourt(state).filter((id) => !staying.some((team) => team.includes(id)));
+
   // Everyone coming off rejoins the queue; whoever has played fewer games goes first.
-  const goingOff = winnersStay
-    ? [...losers]
-    : [...losers, ...winners].sort((a, b) => players[a].gamesPlayed - players[b].gamesPlayed);
-  for (const id of goingOff) players[id] = { ...players[id], streak: 0 };
-  if (winnersStay && openingGame2) {
-    // They already played two, so game 3 is their last in a row.
-    for (const id of winners) players[id] = { ...players[id], streak: Math.max(0, state.settings.maxConsecutive - 1) };
+  leaving.sort((a, b) => players[a].gamesPlayed - players[b].gamesPlayed);
+  for (const id of leaving) players[id] = { ...players[id], streak: 0, limit: undefined };
+  const queue = [...state.queue, ...leaving];
+  const next = { ...state, players, history, opening: 0 };
+
+  if (staying.length === 2) {
+    return { ...next, queue, court: { ...game, startedAt: now } };
   }
-
-  const queue = [...state.queue, ...goingOff];
-
-  if (winnersStay) {
-    // The losers just joined the queue, so there are always at least 2 challengers.
+  if (staying.length === 1) {
+    // The leaving team just joined the queue, so there are always at least 2 challengers.
     const [c, d, ...rest] = queue;
-    return {
-      ...state,
-      players,
-      queue: rest,
-      history,
-      opening: 0,
-      court: { teamA: winners, teamB: [c, d], startedAt: now },
-    };
+    return { ...next, queue: rest, court: { teamA: staying[0], teamB: [c, d], startedAt: now } };
   }
-  return fillCourt({ ...state, players, queue, history, opening: 0, court: null }, now);
+  return fillCourt({ ...next, queue, court: null }, now);
+}
+
+/** How many people from the front of the queue go on after the current game finishes. */
+export function comingOnCount(state: SessionState): number {
+  const game = state.court;
+  if (!game) return 4;
+  if ((state.opening ?? 0) > 1) return 0;
+  if (state.opening === 1) return 2;
+  const max = state.settings.maxConsecutive;
+  const leavingTeams = ([game.teamA, game.teamB] as Team[]).filter(
+    (team) => !team.every((id) => state.players[id].streak + 1 < (state.players[id].limit ?? max)),
+  );
+  return leavingTeams.length * 2;
 }
 
 /** 1-based position in the line to get on court, counting from the front of the queue. */
