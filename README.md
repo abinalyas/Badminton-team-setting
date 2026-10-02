@@ -25,8 +25,8 @@ the cap to 3 or 4 in the **Rules** card.
 
 ## Features
 
-- Check in by typing a name. Regulars are remembered and can be added in
-  one tap the next time.
+- Check in by picking a player from the dropdown (the regular group is built in;
+  "Someone else…" adds a new name, which is remembered).
 - Tap the winning pair to record a result. The next game is set up
   automatically.
 - See the line with each player's position, games played, and arrival time.

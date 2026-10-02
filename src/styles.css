@@ -241,3 +241,8 @@ td:not(:first-child) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.row > select {
+  flex: 1;
+  min-width: 0;
+}

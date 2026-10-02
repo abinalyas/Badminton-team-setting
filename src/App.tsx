@@ -12,6 +12,30 @@ import {
 const SESSION_KEY = "bts.session";
 const ROSTER_KEY = "bts.roster";
 const MAX_UNDO = 30;
+const OTHER = "__other__";
+
+// The regular group (from the WhatsApp poll). New names added in the app are remembered too.
+const DEFAULT_ROSTER = [
+  "Abin",
+  "Adith Jawahar",
+  "Amal",
+  "Amal 2",
+  "Arundas",
+  "Elson Puthencruz",
+  "Jordan",
+  "Nikhil",
+  "Paulo",
+  "Renjith",
+  "Sivan Chettan",
+  "Sreekanth Mech",
+];
+
+function mergeRoster(extra: string[]): string[] {
+  const seen = new Set<string>();
+  return [...DEFAULT_ROSTER, ...extra]
+    .filter((n) => !seen.has(n.toLowerCase()) && !!seen.add(n.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b));
+}
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -37,7 +61,8 @@ function formatTime(ms: number) {
 export default function App() {
   const [state, setState] = useState<SessionState>(() => load(SESSION_KEY, newSession()));
   const [undoStack, setUndoStack] = useState<SessionState[]>([]);
-  const [roster, setRoster] = useState<string[]>(() => load(ROSTER_KEY, []));
+  const [roster, setRoster] = useState<string[]>(() => mergeRoster(load<string[]>(ROSTER_KEY, [])));
+  const [choice, setChoice] = useState("");
   const [name, setName] = useState("");
 
   useEffect(() => save(SESSION_KEY, state), [state]);
@@ -62,10 +87,9 @@ export default function App() {
     const trimmed = raw.trim();
     if (!trimmed || presentNames.has(trimmed.toLowerCase())) return;
     update(checkIn(state, crypto.randomUUID(), trimmed, Date.now()));
-    if (!roster.some((r) => r.toLowerCase() === trimmed.toLowerCase())) {
-      setRoster([...roster, trimmed].sort((a, b) => a.localeCompare(b)));
-    }
+    setRoster(mergeRoster([...roster, trimmed]));
     setName("");
+    setChoice("");
   }
 
   function startNewSession() {
@@ -122,31 +146,34 @@ export default function App() {
           className="row"
           onSubmit={(e) => {
             e.preventDefault();
-            addPlayer(name);
+            addPlayer(choice === OTHER ? name : choice);
           }}
         >
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Player name"
-            aria-label="Player name"
-          />
-          <button type="submit" disabled={!name.trim()}>
+          <select value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="Player">
+            <option value="">Select player…</option>
+            {notHere.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+            <option value={OTHER}>Someone else…</option>
+          </select>
+          <button type="submit" disabled={!choice || (choice === OTHER && !name.trim())}>
             Add
           </button>
         </form>
-        {notHere.length > 0 && (
-          <>
-            <p className="muted small">Tap a regular as they arrive:</p>
-            <div className="chips">
-              {notHere.map((r) => (
-                <button key={r} className="chip" onClick={() => addPlayer(r)}>
-                  + {r}
-                </button>
-              ))}
-            </div>
-          </>
+        {choice === OTHER && (
+          <div className="row">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="New player name"
+              aria-label="New player name"
+              autoFocus
+            />
+          </div>
         )}
+        {notHere.length === 0 && <p className="muted small">Everyone on the list is checked in.</p>}
       </section>
 
       <section className="card">
