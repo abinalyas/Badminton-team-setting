@@ -10,9 +10,13 @@ line, so you don't have to work out by hand who plays next.
 
 1. **Check in on arrival.** Each player joins the back of the line. Earlier
    arrivals play earlier.
-2. **First game.** When 4 people are present, the first 4 in line go on court.
-3. **Winners stay, losers go to the back.** After each game the losing pair
-   goes to the back of the line and the next 2 in line come on to challenge.
+2. **Opening games.** When 4 people are present, the first 4 in line go on
+   court and play **two games against each other**. Nobody else comes on yet.
+   The winners of game 2 stay on for game 3 against the next 2 in line, then
+   come off. This applies to the opening four only.
+3. **Winners stay, losers go to the back.** From then on, after each game the
+   losing pair goes to the back of the line and the next 2 in line come on to
+   challenge.
 4. **Max games in a row (default 2).** A pair that has played 2 games in a row
    comes off even if they win, and the next 4 in line go on.
 

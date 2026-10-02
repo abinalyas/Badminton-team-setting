@@ -139,6 +139,13 @@ export default function App() {
               <span className="vs">vs</span>
               <TeamBox label="Team B" team={state.court.teamB} state={state} />
             </div>
+            {state.opening ? (
+              <p className="notice">
+                {state.opening === 2
+                  ? "Opening game 1 of 2: the first four play each other twice."
+                  : "Opening game 2 of 2: the winners stay on for game 3 against the next two."}
+              </p>
+            ) : null}
             {compromising.length > 0 && (
               <p className="notice">
                 {compromising.map(playerName).join(" & ")} {compromising.length === 1 ? "is" : "are"} not with{" "}
@@ -310,6 +317,14 @@ export default function App() {
           />
         </label>
         <label className="row between">
+          <span>First four play two games together</span>
+          <input
+            type="checkbox"
+            checked={state.settings.openingFour !== false}
+            onChange={(e) => update({ ...state, settings: { ...state.settings, openingFour: e.target.checked } })}
+          />
+        </label>
+        <label className="row between">
           <span>Keep usual pairs together</span>
           <input
             type="checkbox"
@@ -344,7 +359,8 @@ export default function App() {
           </button>
           {(state.settings.winnersStay !== defaultSettings.winnersStay ||
             state.settings.maxConsecutive !== defaultSettings.maxConsecutive ||
-            state.settings.keepPairs === false) && (
+            state.settings.keepPairs === false ||
+            state.settings.openingFour === false) && (
             <button
               className="ghost"
               onClick={() => update({ ...state, settings: { ...defaultSettings, pairs: state.settings.pairs } })}

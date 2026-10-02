@@ -38,6 +38,8 @@ export interface Settings {
   /** Usual pairs, by player name. Optional so older saved sessions still load. */
   pairs?: Array<[string, string]>;
   keepPairs?: boolean;
+  /** The first four play games 1 and 2 together; game 2's winners stay for game 3. Default on. */
+  openingFour?: boolean;
 }
 
 export interface SessionState {
@@ -47,9 +49,11 @@ export interface SessionState {
   court: Game | null;
   history: FinishedGame[];
   settings: Settings;
+  /** Opening games left for the first four: 2 = game 1 on court, 1 = game 2 on court, 0/undefined = normal rotation. */
+  opening?: number;
 }
 
-export const defaultSettings: Settings = { maxConsecutive: 2, winnersStay: true, pairs: [], keepPairs: true };
+export const defaultSettings: Settings = { maxConsecutive: 2, winnersStay: true, pairs: [], keepPairs: true, openingFour: true };
 
 export function newSession(settings: Settings = defaultSettings): SessionState {
   return { players: {}, queue: [], court: null, history: [], settings };
@@ -127,7 +131,8 @@ export function fillCourt(state: SessionState, now: number): SessionState {
   if (state.court || state.queue.length < 4) return state;
   const four = state.queue.slice(0, 4);
   const [teamA, teamB] = makeTeams(state, four);
-  return { ...state, queue: state.queue.slice(4), court: { teamA, teamB, startedAt: now } };
+  const opening = state.history.length === 0 && state.settings.openingFour !== false ? 2 : 0;
+  return { ...state, queue: state.queue.slice(4), court: { teamA, teamB, startedAt: now }, opening };
 }
 
 export function recordResult(state: SessionState, winner: "A" | "B", now: number): SessionState {
@@ -147,20 +152,40 @@ export function recordResult(state: SessionState, winner: "A" | "B", now: number
     };
   }
 
+  const history = [...state.history, { ...game, winner, finishedAt: now }];
+
+  // Opening game 1: the same four stay on for game 2, nobody from the queue comes on yet.
+  if (state.opening === 2) {
+    return { ...state, players, history, opening: 1, court: { ...game, startedAt: now } };
+  }
+
+  // Opening game 2: the winners always stay for game 3 against the next two, then come off.
+  const openingGame2 = state.opening === 1;
   const winnersStay =
-    state.settings.winnersStay && winners.every((id) => players[id].streak < state.settings.maxConsecutive);
+    state.settings.winnersStay &&
+    (openingGame2 || winners.every((id) => players[id].streak < state.settings.maxConsecutive));
   const goingOff = winnersStay ? [...losers] : [...losers, ...winners];
   for (const id of goingOff) players[id] = { ...players[id], streak: 0 };
+  if (winnersStay && openingGame2) {
+    // They already played two, so game 3 is their last in a row.
+    for (const id of winners) players[id] = { ...players[id], streak: Math.max(0, state.settings.maxConsecutive - 1) };
+  }
 
   const queue = [...state.queue, ...goingOff];
-  const history = [...state.history, { ...game, winner, finishedAt: now }];
 
   if (winnersStay) {
     // The losers just joined the queue, so there are always at least 2 challengers.
     const [c, d, ...rest] = queue;
-    return { ...state, players, queue: rest, history, court: { teamA: winners, teamB: [c, d], startedAt: now } };
+    return {
+      ...state,
+      players,
+      queue: rest,
+      history,
+      opening: 0,
+      court: { teamA: winners, teamB: [c, d], startedAt: now },
+    };
   }
-  return fillCourt({ ...state, players, queue, history, court: null }, now);
+  return fillCourt({ ...state, players, queue, history, opening: 0, court: null }, now);
 }
 
 /** 1-based position in the line to get on court, counting from the front of the queue. */
