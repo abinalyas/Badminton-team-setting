@@ -14,15 +14,16 @@ line, so you don't have to work out by hand who plays next.
    court and play **two games against each other**. Nobody else comes on yet.
    The winners of game 2 stay on for game 3 against the next 2 in line, then
    come off. This applies to the opening four only.
-3. **Winners stay, losers go to the back.** From then on, after each game the
-   losing pair goes to the back of the line and the next 2 in line come on to
-   challenge.
-4. **Max games in a row (default 2).** A pair that has played 2 games in a row
-   comes off even if they win, and the next 4 in line go on.
+3. **After game 3, winning no longer matters.** All four come off after
+   every game and the next 4 in line go on. People who have played fewer games
+   rejoin the line ahead of those who have played more, so everyone gets games.
 
-Rule 4 fixes the old "only the first shift benefits from winning" problem.
-The same cap applies to every group, so winning always earns exactly one
-more game, whether you started at 7:00 or 7:45, and nobody holds the court.
+Winning only affects game 3, so the first four have no lasting advantage beyond
+getting on court first and playing the opening games.
+
+Optional: turn on **Winners keep playing** in Rules to use a winners-stay
+rotation after the opening (losers go to the back, the next 2 challenge, and a
+pair comes off after 2 games in a row; the cap can be 2, 3 or 4).
 
 ### Usual pairs
 
@@ -33,12 +34,10 @@ pairs**. Pairs are saved with the session, so you set them up once.
 - Nobody skips the line for a pair. If only one partner is among the next
   players up, that person plays with someone else for that one game (the app
   shows a note saying so), so the first-come advantage is unchanged.
-- Winning pairs stay together as a team, and pairs that go to the back of the
-  line stay together in the queue.
 - Turn it off with **Keep usual pairs together** in the Rules card.
 
-You can switch off "winners stay" (all 4 come off after every game) or raise
-the cap to 3 or 4 in the **Rules** card.
+The **Rules** card has switches for the opening games, usual pairs and the
+optional winners-keep-playing rotation.
 
 ## Features
 

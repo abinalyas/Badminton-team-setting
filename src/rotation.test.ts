@@ -14,7 +14,8 @@ function arrive(state: SessionState, ...names: string[]): SessionState {
   return names.reduce((s, n, i) => checkIn(s, n, n, i), state);
 }
 
-const noOpening = { ...defaultSettings, openingFour: false };
+// "Classic" = the optional winners-stay rule with no opening games, to test that rule on its own.
+const noOpening = { ...defaultSettings, openingFour: false, winnersStay: true };
 const normal = () => newSession(noOpening);
 
 describe("rotation", () => {
@@ -153,15 +154,24 @@ describe("rotation", () => {
       expect(s.opening).toBe(0);
     });
 
-    it("applies only to the first four, not to later groups", () => {
+    it("after game 3 winning no longer matters: all four come off and the next four go on", () => {
       let s = started();
       s = recordResult(s, "A", 10);
       s = recordResult(s, "A", 20);
       s = recordResult(s, "B", 30); // p5 & p6 beat the opening winners in game 3
-      const stay = s.court!.teamA;
-      expect(stay).toEqual(["p5", "p6"]);
-      s = recordResult(s, "A", 40); // they win game 4 -> normal rule: 2 in a row, now off
       expect(onCourt(s)).not.toContain("p5");
+      expect(onCourt(s)).not.toContain("p6");
+      expect(onCourt(s)).toContain("p7");
+      expect(onCourt(s)).toContain("p8");
+    });
+
+    it("people who have played fewer games rejoin the queue ahead of those who played more", () => {
+      let s = started();
+      s = recordResult(s, "A", 10);
+      s = recordResult(s, "A", 20);
+      s = recordResult(s, "B", 30);
+      // p5/p6 played 1 game, the opening four played 3 -> p5/p6 are first back in line.
+      expect(s.queue.slice(0, 2).sort()).toEqual(["p5", "p6"]);
     });
 
     it("with only four players, games just keep going", () => {

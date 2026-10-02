@@ -40,6 +40,8 @@ export interface Settings {
   keepPairs?: boolean;
   /** The first four play games 1 and 2 together; game 2's winners stay for game 3. Default on. */
   openingFour?: boolean;
+  /** Bumped when default rules change, so saved sessions can be migrated. */
+  rulesVersion?: number;
 }
 
 export interface SessionState {
@@ -53,7 +55,14 @@ export interface SessionState {
   opening?: number;
 }
 
-export const defaultSettings: Settings = { maxConsecutive: 2, winnersStay: true, pairs: [], keepPairs: true, openingFour: true };
+export const defaultSettings: Settings = {
+  maxConsecutive: 2,
+  winnersStay: false,
+  pairs: [],
+  keepPairs: true,
+  openingFour: true,
+  rulesVersion: 2,
+};
 
 export function newSession(settings: Settings = defaultSettings): SessionState {
   return { players: {}, queue: [], court: null, history: [], settings };
@@ -161,10 +170,14 @@ export function recordResult(state: SessionState, winner: "A" | "B", now: number
 
   // Opening game 2: the winners always stay for game 3 against the next two, then come off.
   const openingGame2 = state.opening === 1;
+  // After the opening, winning only matters if "winners stay" is switched on in Rules.
   const winnersStay =
-    state.settings.winnersStay &&
-    (openingGame2 || winners.every((id) => players[id].streak < state.settings.maxConsecutive));
-  const goingOff = winnersStay ? [...losers] : [...losers, ...winners];
+    openingGame2 ||
+    (state.settings.winnersStay && winners.every((id) => players[id].streak < state.settings.maxConsecutive));
+  // Everyone coming off rejoins the queue; whoever has played fewer games goes first.
+  const goingOff = winnersStay
+    ? [...losers]
+    : [...losers, ...winners].sort((a, b) => players[a].gamesPlayed - players[b].gamesPlayed);
   for (const id of goingOff) players[id] = { ...players[id], streak: 0 };
   if (winnersStay && openingGame2) {
     // They already played two, so game 3 is their last in a row.

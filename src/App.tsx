@@ -59,8 +59,22 @@ function formatTime(ms: number) {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+// Sessions saved before the rules changed keep their players but get the current default rules.
+function migrate(saved: SessionState): SessionState {
+  if (saved.settings.rulesVersion === defaultSettings.rulesVersion) return saved;
+  return {
+    ...saved,
+    settings: {
+      ...saved.settings,
+      winnersStay: defaultSettings.winnersStay,
+      maxConsecutive: defaultSettings.maxConsecutive,
+      rulesVersion: defaultSettings.rulesVersion,
+    },
+  };
+}
+
 export default function App() {
-  const [state, setState] = useState<SessionState>(() => load(SESSION_KEY, newSession()));
+  const [state, setState] = useState<SessionState>(() => migrate(load(SESSION_KEY, newSession())));
   const [undoStack, setUndoStack] = useState<SessionState[]>([]);
   const [roster, setRoster] = useState<string[]>(() => mergeRoster(load<string[]>(ROSTER_KEY, [])));
   const [choice, setChoice] = useState("");
@@ -119,6 +133,8 @@ export default function App() {
   const notHere = roster.filter((r) => !presentNames.has(r.toLowerCase()));
   const present = Object.values(state.players);
   const compromising = compromises(state);
+  // How many people from the front of the queue go on after the current game.
+  const comingOnCount = !state.court ? 4 : state.opening === 2 ? 0 : state.opening === 1 || state.settings.winnersStay ? 2 : 4;
   const needed = 4 - present.length;
 
   return (
@@ -215,7 +231,7 @@ export default function App() {
           <ol className="queue">
             {state.queue.map((id, i) => {
               const p = state.players[id];
-              const comingOn = state.court ? i < 2 : i < 4;
+              const comingOn = i < comingOnCount;
               return (
                 <li key={id} className={comingOn ? "next" : ""}>
                   <span className="pos">{i + 1}</span>
@@ -309,7 +325,7 @@ export default function App() {
       <section className="card">
         <h2>Rules</h2>
         <label className="row between">
-          <span>Winners stay on</span>
+          <span>Winners keep playing (optional)</span>
           <input
             type="checkbox"
             checked={state.settings.winnersStay}
@@ -349,9 +365,9 @@ export default function App() {
           </select>
         </label>
         <p className="muted small">
-          Losers go to the back of the line. Winners stay until they've played{" "}
-          {state.settings.maxConsecutive} in a row, then they come off too, so every group gets the same
-          chance.
+          The first four play two games, and the game 2 winners stay on for game 3. After that, all four come off
+          after every game and the next four in line go on, so winning only matters for game 3. Turn on "winners
+          keep playing" if you want winners to stay on (up to {state.settings.maxConsecutive} in a row).
         </p>
         <div className="row">
           <button className="ghost" onClick={startNewSession}>
