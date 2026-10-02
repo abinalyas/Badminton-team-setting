@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   checkIn,
+  compromises,
   defaultSettings,
   leave,
   newSession,
@@ -63,6 +64,8 @@ export default function App() {
   const [undoStack, setUndoStack] = useState<SessionState[]>([]);
   const [roster, setRoster] = useState<string[]>(() => mergeRoster(load<string[]>(ROSTER_KEY, [])));
   const [choice, setChoice] = useState("");
+  const [pairA, setPairA] = useState("");
+  const [pairB, setPairB] = useState("");
   const [name, setName] = useState("");
 
   useEffect(() => save(SESSION_KEY, state), [state]);
@@ -92,6 +95,20 @@ export default function App() {
     setChoice("");
   }
 
+  const pairs = state.settings.pairs ?? [];
+  const inPair = (n: string) => pairs.some(([x, y]) => x === n || y === n);
+
+  function addPair() {
+    if (!pairA || !pairB || pairA === pairB || inPair(pairA) || inPair(pairB)) return;
+    update({ ...state, settings: { ...state.settings, pairs: [...pairs, [pairA, pairB]] } });
+    setPairA("");
+    setPairB("");
+  }
+
+  function removePair(i: number) {
+    update({ ...state, settings: { ...state.settings, pairs: pairs.filter((_, j) => j !== i) } });
+  }
+
   function startNewSession() {
     if (!confirm("End this session and clear the queue? Saved player names are kept.")) return;
     update(newSession(state.settings));
@@ -101,6 +118,7 @@ export default function App() {
   const teamLabel = (team: Team) => team.map(playerName).join(" & ");
   const notHere = roster.filter((r) => !presentNames.has(r.toLowerCase()));
   const present = Object.values(state.players);
+  const compromising = compromises(state);
   const needed = 4 - present.length;
 
   return (
@@ -121,6 +139,12 @@ export default function App() {
               <span className="vs">vs</span>
               <TeamBox label="Team B" team={state.court.teamB} state={state} />
             </div>
+            {compromising.length > 0 && (
+              <p className="notice">
+                {compromising.map(playerName).join(" & ")} {compromising.length === 1 ? "is" : "are"} not with{" "}
+                {compromising.length === 1 ? "their" : "a"} usual partner this game, to keep the queue fair.
+              </p>
+            )}
             <p className="muted">Who won?</p>
             <div className="row">
               <button onClick={() => update(recordResult(state, "A", Date.now()))}>
@@ -230,6 +254,52 @@ export default function App() {
       )}
 
       <section className="card">
+        <h2>Usual pairs</h2>
+        {pairs.length === 0 ? (
+          <p className="muted small">
+            Pairs who like to play together. They're put on the same team when both are in the next game. Nobody
+            skips the line: if only one of them is up, they play with someone else for that game.
+          </p>
+        ) : (
+          <ul className="pairs">
+            {pairs.map(([x, y], i) => (
+              <li key={`${x}-${y}`}>
+                <span>
+                  {x} & {y}
+                </span>
+                <button className="ghost small" onClick={() => removePair(i)} aria-label={`Remove pair ${x} and ${y}`}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="row">
+          <select value={pairA} onChange={(e) => setPairA(e.target.value)} aria-label="First partner">
+            <option value="">Player…</option>
+            {roster.filter((r) => !inPair(r) && r !== pairB).map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select value={pairB} onChange={(e) => setPairB(e.target.value)} aria-label="Second partner">
+            <option value="">Partner…</option>
+            {roster.filter((r) => !inPair(r) && r !== pairA).map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="row">
+          <button onClick={addPair} disabled={!pairA || !pairB}>
+            Add pair
+          </button>
+        </div>
+      </section>
+
+      <section className="card">
         <h2>Rules</h2>
         <label className="row between">
           <span>Winners stay on</span>
@@ -237,6 +307,14 @@ export default function App() {
             type="checkbox"
             checked={state.settings.winnersStay}
             onChange={(e) => update({ ...state, settings: { ...state.settings, winnersStay: e.target.checked } })}
+          />
+        </label>
+        <label className="row between">
+          <span>Keep usual pairs together</span>
+          <input
+            type="checkbox"
+            checked={state.settings.keepPairs !== false}
+            onChange={(e) => update({ ...state, settings: { ...state.settings, keepPairs: e.target.checked } })}
           />
         </label>
         <label className="row between">
@@ -265,8 +343,12 @@ export default function App() {
             New session
           </button>
           {(state.settings.winnersStay !== defaultSettings.winnersStay ||
-            state.settings.maxConsecutive !== defaultSettings.maxConsecutive) && (
-            <button className="ghost" onClick={() => update({ ...state, settings: defaultSettings })}>
+            state.settings.maxConsecutive !== defaultSettings.maxConsecutive ||
+            state.settings.keepPairs === false) && (
+            <button
+              className="ghost"
+              onClick={() => update({ ...state, settings: { ...defaultSettings, pairs: state.settings.pairs } })}
+            >
               Reset rules
             </button>
           )}

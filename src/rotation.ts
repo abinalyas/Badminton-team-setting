@@ -35,6 +35,9 @@ export interface FinishedGame extends Game {
 export interface Settings {
   maxConsecutive: number;
   winnersStay: boolean;
+  /** Usual pairs, by player name. Optional so older saved sessions still load. */
+  pairs?: Array<[string, string]>;
+  keepPairs?: boolean;
 }
 
 export interface SessionState {
@@ -46,7 +49,7 @@ export interface SessionState {
   settings: Settings;
 }
 
-export const defaultSettings: Settings = { maxConsecutive: 2, winnersStay: true };
+export const defaultSettings: Settings = { maxConsecutive: 2, winnersStay: true, pairs: [], keepPairs: true };
 
 export function newSession(settings: Settings = defaultSettings): SessionState {
   return { players: {}, queue: [], court: null, history: [], settings };
@@ -69,12 +72,62 @@ export function onCourt(state: SessionState): string[] {
   return state.court ? [...state.court.teamA, ...state.court.teamB] : [];
 }
 
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** The usual partner of a checked-in player, if that partner is also checked in. */
+export function partnerOf(state: SessionState, id: string): string | undefined {
+  if (state.settings.keepPairs === false) return undefined;
+  const me = state.players[id];
+  if (!me) return undefined;
+  for (const [x, y] of state.settings.pairs ?? []) {
+    const other = sameName(x, me.name) ? y : sameName(y, me.name) ? x : null;
+    if (other === null) continue;
+    return Object.values(state.players).find((p) => sameName(p.name, other))?.id;
+  }
+  return undefined;
+}
+
+/**
+ * Splits 4 players into two teams. The first 4 in the queue always play (so arrival order is
+ * fair); usual partners are put on the same team whenever both are in the group.
+ */
+function makeTeams(state: SessionState, four: string[]): [Team, Team] {
+  const pairs: Team[] = [];
+  const used = new Set<string>();
+  for (const id of four) {
+    const partner = partnerOf(state, id);
+    if (used.has(id) || !partner || !four.includes(partner)) continue;
+    pairs.push([id, partner]);
+    used.add(id).add(partner);
+  }
+  if (pairs.length >= 2) return [pairs[0], pairs[1]];
+  if (pairs.length === 1) {
+    const rest = four.filter((id) => !used.has(id)) as Team;
+    return [pairs[0], rest];
+  }
+  // No pairs: the 1st goes with the 3rd and the 2nd with the 4th so the earliest arrivals
+  // aren't always partners.
+  return [[four[0], four[2]], [four[1], four[3]]];
+}
+
+/** Players on court whose usual partner is checked in but playing on the other team. */
+export function compromises(state: SessionState): string[] {
+  const game = state.court;
+  if (!game) return [];
+  return onCourt(state).filter((id) => {
+    const partner = partnerOf(state, id);
+    if (!partner) return false;
+    const team = game.teamA.includes(id) ? game.teamA : game.teamB;
+    return !team.includes(partner);
+  });
+}
+
 /** Starts a game with the first 4 in the queue if the court is free. */
 export function fillCourt(state: SessionState, now: number): SessionState {
   if (state.court || state.queue.length < 4) return state;
-  const [a, b, c, d, ...rest] = state.queue;
-  // Pair 1st with 3rd and 2nd with 4th so the earliest arrivals aren't always partners.
-  return { ...state, queue: rest, court: { teamA: [a, c], teamB: [b, d], startedAt: now } };
+  const four = state.queue.slice(0, 4);
+  const [teamA, teamB] = makeTeams(state, four);
+  return { ...state, queue: state.queue.slice(4), court: { teamA, teamB, startedAt: now } };
 }
 
 export function recordResult(state: SessionState, winner: "A" | "B", now: number): SessionState {

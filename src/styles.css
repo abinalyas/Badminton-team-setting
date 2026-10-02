@@ -246,3 +246,29 @@ td:not(:first-child) {
   flex: 1;
   min-width: 0;
 }
+
+.notice {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 0.85rem;
+}
+
+.pairs {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.pairs li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pairs li:first-child {
+  border-top: none;
+}

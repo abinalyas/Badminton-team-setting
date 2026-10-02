@@ -20,6 +20,19 @@ Rule 4 fixes the old "only the first shift benefits from winning" problem.
 The same cap applies to every group, so winning always earns exactly one
 more game, whether you started at 7:00 or 7:45, and nobody holds the court.
 
+### Usual pairs
+
+Some people want to play with their usual partner. Add them under **Usual
+pairs**. Pairs are saved with the session, so you set them up once.
+
+- When both partners are in the next game, they're put on the same team.
+- Nobody skips the line for a pair. If only one partner is among the next
+  players up, that person plays with someone else for that one game (the app
+  shows a note saying so), so the first-come advantage is unchanged.
+- Winning pairs stay together as a team, and pairs that go to the back of the
+  line stay together in the queue.
+- Turn it off with **Keep usual pairs together** in the Rules card.
+
 You can switch off "winners stay" (all 4 come off after every game) or raise
 the cap to 3 or 4 in the **Rules** card.
 
