@@ -20,8 +20,8 @@ const OTHER = "__other__";
 const DEFAULT_ROSTER = [
   "Abin",
   "Adith Jawahar",
-  "Amal",
-  "Amal 2",
+  "Amal KWA",
+  "Amal Luker",
   "Arundas",
   "Elson Puthencruz",
   "Jordan",
@@ -32,9 +32,13 @@ const DEFAULT_ROSTER = [
   "Sreekanth Mech",
 ];
 
+// Names that were renamed; applied to anything saved on the phone under the old name.
+const RENAMES: Record<string, string> = { Amal: "Amal KWA", "Amal 2": "Amal Luker" };
+const rename = (n: string) => RENAMES[n] ?? n;
+
 function mergeRoster(extra: string[]): string[] {
   const seen = new Set<string>();
-  return [...DEFAULT_ROSTER, ...extra]
+  return [...DEFAULT_ROSTER, ...extra.map(rename)]
     .filter((n) => !seen.has(n.toLowerCase()) && !!seen.add(n.toLowerCase()))
     .sort((a, b) => a.localeCompare(b));
 }
@@ -61,7 +65,17 @@ function formatTime(ms: number) {
 }
 
 // Sessions saved before the rules changed keep their players but get the current default rules.
-function migrate(saved: SessionState): SessionState {
+function migrate(loaded: SessionState): SessionState {
+  const saved: SessionState = {
+    ...loaded,
+    players: Object.fromEntries(
+      Object.entries(loaded.players).map(([id, p]) => [id, { ...p, name: rename(p.name) }]),
+    ),
+    settings: {
+      ...loaded.settings,
+      pairs: loaded.settings.pairs?.map(([x, y]) => [rename(x), rename(y)] as [string, string]),
+    },
+  };
   if (saved.settings.rulesVersion === defaultSettings.rulesVersion) return saved;
   return {
     ...saved,
