@@ -73,7 +73,8 @@ export function newSession(settings: Settings = defaultSettings): SessionState {
 export function checkIn(state: SessionState, id: string, name: string, now: number): SessionState {
   if (state.players[id]) return state;
   const player: Player = { id, name, arrivedAt: now, gamesPlayed: 0, wins: 0, streak: 0 };
-  return fillCourt({ ...state, players: { ...state.players, [id]: player }, queue: [...state.queue, id] }, now);
+  const joined = { ...state, players: { ...state.players, [id]: player }, queue: [...state.queue, id] };
+  return keepPairsTogether(fillCourt(joined, now));
 }
 
 /** Removes a waiting player (e.g. they went home). Players on court can't leave mid-game. */
@@ -137,17 +138,90 @@ export function compromises(state: SessionState): string[] {
   });
 }
 
+/**
+ * Takes the next `size` players from the front of `queue`. Partners who are side by side in the
+ * queue count as one unit, so a pair is never split by the edge of a group: if a pair would
+ * straddle it, the single player just before them waits one more game instead.
+ */
+function pickGroup(state: SessionState, queue: string[], size: number): { group: string[]; rest: string[] } {
+  const units: string[][] = [];
+  for (let i = 0; i < queue.length; ) {
+    const partner = partnerOf(state, queue[i]);
+    if (partner && queue[i + 1] === partner) {
+      units.push([queue[i], partner]);
+      i += 2;
+    } else {
+      units.push([queue[i]]);
+      i += 1;
+    }
+  }
+  const picked: string[][] = [];
+  const count = () => picked.reduce((n, u) => n + u.length, 0);
+  for (const unit of units) {
+    if (count() >= size) break;
+    if (unit.length <= size - count()) {
+      picked.push(unit);
+      continue;
+    }
+    // A pair needs 2 places but only 1 is left: it takes the place of the last single picked.
+    const lastSingle = picked.map((u) => u.length).lastIndexOf(1);
+    if (lastSingle !== -1) {
+      picked.splice(lastSingle, 1);
+      picked.push(unit);
+    }
+  }
+  const group = picked.flat();
+  return { group, rest: queue.filter((id) => !group.includes(id)) };
+}
+
+/**
+ * Lines usual partners up in the queue so they can play together. If the earlier partner is
+ * still waiting, they move back to stand next to the later partner, so the pair plays when the
+ * later partner's turn comes and nobody who arrived before that partner is bumped. A partner who
+ * is already in the next group isn't moved: they play now, with someone else if need be.
+ */
+export function keepPairsTogether(state: SessionState): SessionState {
+  if (state.settings.keepPairs === false || !state.court) return state;
+  const protectedCount = comingOnCount(state);
+  let queue = state.queue;
+  for (const id of state.queue) {
+    const partner = partnerOf(state, id);
+    if (!partner) continue;
+    const a = queue.indexOf(id);
+    const b = queue.indexOf(partner);
+    if (a === -1 || b === -1 || Math.abs(a - b) === 1) continue;
+    const [early, late] = a < b ? [a, b] : [b, a];
+    if (early < protectedCount) continue;
+    const without = queue.filter((_, i) => i !== early);
+    without.splice(late - 1, 0, queue[early]);
+    queue = without;
+  }
+  return queue === state.queue ? state : { ...state, queue };
+}
+
+/** Makes two players a usual pair, and lines them up in the queue if both are waiting. */
+export function pairUp(state: SessionState, a: string, b: string): SessionState {
+  const pairs = state.settings.pairs ?? [];
+  const taken = (n: string) => pairs.some(([x, y]) => sameName(x, n) || sameName(y, n));
+  if (sameName(a, b) || taken(a) || taken(b)) return state;
+  return keepPairsTogether({ ...state, settings: { ...state.settings, pairs: [...pairs, [a, b]] } });
+}
+
 /** Starts a game with the first 4 in the queue if the court is free. */
 export function fillCourt(state: SessionState, now: number): SessionState {
   if (state.court || state.queue.length < 4) return state;
-  const four = state.queue.slice(0, 4);
+  const { group: four, rest } = pickGroup(state, state.queue, 4);
   const [teamA, teamB] = makeTeams(state, four);
   const opening =
     state.history.length === 0 && state.settings.openingFour !== false ? state.settings.maxConsecutive : 0;
-  return { ...state, queue: state.queue.slice(4), court: { teamA, teamB, startedAt: now }, opening };
+  return { ...state, queue: rest, court: { teamA, teamB, startedAt: now }, opening };
 }
 
 export function recordResult(state: SessionState, winner: "A" | "B", now: number): SessionState {
+  return keepPairsTogether(recordGame(state, winner, now));
+}
+
+function recordGame(state: SessionState, winner: "A" | "B", now: number): SessionState {
   const game = state.court;
   if (!game) return state;
   const winners = winner === "A" ? game.teamA : game.teamB;
@@ -194,8 +268,8 @@ export function recordResult(state: SessionState, winner: "A" | "B", now: number
   }
   if (staying.length === 1) {
     // The leaving team just joined the queue, so there are always at least 2 challengers.
-    const [c, d, ...rest] = queue;
-    return { ...next, queue: rest, court: { teamA: staying[0], teamB: [c, d], startedAt: now } };
+    const { group, rest } = pickGroup(state, queue, 2);
+    return { ...next, queue: rest, court: { teamA: staying[0], teamB: [group[0], group[1]], startedAt: now } };
   }
   return fillCourt({ ...next, queue, court: null }, now);
 }

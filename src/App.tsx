@@ -6,6 +6,8 @@ import {
   defaultSettings,
   leave,
   newSession,
+  pairUp,
+  partnerOf,
   recordResult,
   type SessionState,
   type Team,
@@ -129,7 +131,7 @@ export default function App() {
 
   function addPair() {
     if (!pairA || !pairB || pairA === pairB || inPair(pairA) || inPair(pairB)) return;
-    update({ ...state, settings: { ...state.settings, pairs: [...pairs, [pairA, pairB]] } });
+    update(pairUp(state, pairA, pairB));
     setPairA("");
     setPairB("");
   }
@@ -252,6 +254,9 @@ export default function App() {
                   <span className="name">{p.name}</span>
                   <span className="muted small">
                     {p.gamesPlayed} game{p.gamesPlayed === 1 ? "" : "s"} · in {formatTime(p.arrivedAt)}
+                    {partnerOf(state, id) && state.queue.includes(partnerOf(state, id)!) && (
+                      <> · pair with {playerName(partnerOf(state, id)!)}</>
+                    )}
                   </span>
                   <button className="ghost small" onClick={() => update(leave(state, id))} aria-label={`${p.name} left`}>
                     Left
@@ -294,8 +299,9 @@ export default function App() {
         <h2>Usual pairs</h2>
         {pairs.length === 0 ? (
           <p className="muted small">
-            Pairs who like to play together. They're put on the same team when both are in the next game. Nobody
-            skips the line: if only one of them is up, they play with someone else for that game.
+            Pairs who like to play together. They're put on the same team, and if one arrives later they're lined up
+            to play together at the later one's turn. Nobody skips the line: if one of them is already up next, they
+            play with someone else for that game.
           </p>
         ) : (
           <ul className="pairs">

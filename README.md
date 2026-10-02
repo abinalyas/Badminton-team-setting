@@ -31,9 +31,14 @@ Some people want to play with their usual partner. Add them under **Usual
 pairs**. Pairs are saved with the session, so you set them up once.
 
 - When both partners are in the next game, they're put on the same team.
-- Nobody skips the line for a pair. If only one partner is among the next
-  players up, that person plays with someone else for that one game (the app
-  shows a note saying so), so the first-come advantage is unchanged.
+- **If one partner arrives late,** the early one moves back in the line to stand
+  next to them, so the pair plays together at the later partner's turn. This
+  also happens when you add the pair after both have arrived. Nobody who came
+  before the later partner is bumped, except that if the pair would be split by
+  the edge of a game, the single player just before them waits one more game.
+- Nobody skips the line for a pair. If one partner is already in the next group
+  to go on, that person plays with someone else for that one game (the app shows
+  a note saying so).
 - Turn it off with **Keep usual pairs together** in the Rules card.
 
 The **Rules** card has switches for the opening games and usual pairs, and the

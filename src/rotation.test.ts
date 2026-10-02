@@ -7,6 +7,7 @@ import {
   leave,
   newSession,
   onCourt,
+  pairUp,
   recordResult,
   type SessionState,
 } from "./rotation";
@@ -164,6 +165,65 @@ describe("rotation", () => {
         "p1", "p2", "p3", "p4",
       );
       expect(s.court!.teamA).toEqual(["p1", "p3"]);
+    });
+  });
+
+  describe("pairs who arrive at different times", () => {
+    const withPairs = (pairs: Array<[string, string]>) => newSession({ ...noOpening, pairs });
+
+    it("moves the early partner back to stand next to the late partner", () => {
+      let s = arrive(withPairs([["S", "P"]]), "p1", "p2", "p3", "p4", "x1", "S", "x2", "x3", "P");
+      expect(s.queue).toEqual(["x1", "x2", "x3", "S", "P"]);
+      // Nobody who arrived before the late partner is bumped, and nobody jumps ahead of them.
+      s = recordResult(s, "A", 10);
+      s = recordResult(s, "A", 20); // both opening teams have played two games and come off
+      // The pair takes the last two places, so x3 waits one game and goes first after that.
+      expect(sorted(onCourt(s))).toEqual(sorted(["x1", "x2", "S", "P"]));
+      expect(s.queue[0]).toBe("x3");
+    });
+
+    it("plays the pair as a team when their turn comes", () => {
+      let s = arrive(withPairs([["S", "P"]]), "p1", "p2", "p3", "p4", "x1", "S", "x2", "P");
+      expect(s.queue).toEqual(["x1", "x2", "S", "P"]);
+      s = recordResult(s, "A", 10);
+      s = recordResult(s, "A", 20);
+      const teams = [s.court!.teamA, s.court!.teamB].map(sorted);
+      expect(teams).toContainEqual(["P", "S"]);
+      expect(compromises(s)).toEqual([]);
+    });
+
+    it("works when the pair is added after both have already arrived", () => {
+      let s = arrive(newSession(noOpening), "p1", "p2", "p3", "p4", "x1", "S", "x2", "x3", "P");
+      expect(s.queue).toEqual(["x1", "S", "x2", "x3", "P"]);
+      s = pairUp(s, "S", "P");
+      expect(s.queue).toEqual(["x1", "x2", "x3", "S", "P"]);
+      expect(s.settings.pairs).toEqual([["S", "P"]]);
+    });
+
+    it("doesn't move a partner who is already in the next group: they play now with someone else", () => {
+      let s = arrive(withPairs([["S", "P"]]), "p1", "p2", "p3", "p4", "x1", "S", "x2", "x3", "x4");
+      s = recordResult(s, "A", 10); // game 1 done: the next four after game 2 are x1 S x2 x3
+      s = checkIn(s, "P", "P", 15); // P arrives late
+      expect(s.queue).toEqual(["x1", "S", "x2", "x3", "x4", "P"]);
+      s = recordResult(s, "A", 20);
+      expect(sorted(onCourt(s))).toEqual(sorted(["x1", "S", "x2", "x3"]));
+      expect(compromises(s)).toEqual(["S"]);
+    });
+
+    it("a pair is never split by the edge of a group: the single player before them waits one game", () => {
+      // x1 would play next with S, but S & P are side by side, so S & P take the places and x1 waits.
+      let s = arrive(newSession(), "p1", "p2", "p3", "p4", "x1", "S", "P", "x2");
+      s = pairUp(s, "S", "P");
+      s = recordResult(s, "A", 10);
+      s = recordResult(s, "A", 20); // game 3: opening winners vs the next two
+      expect(sorted(s.court!.teamB)).toEqual(["P", "S"]);
+      expect(s.queue[0]).toBe("x1");
+    });
+
+    it("only one pair per player", () => {
+      let s = arrive(newSession(noOpening), "p1", "p2", "p3", "p4", "S", "P", "Q");
+      s = pairUp(s, "S", "P");
+      expect(pairUp(s, "S", "Q")).toBe(s);
     });
   });
 });
