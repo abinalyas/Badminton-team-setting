@@ -272,3 +272,26 @@ td:not(:first-child) {
 .pairs li:first-child {
   border-top: none;
 }
+
+.splits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.split {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 2px solid var(--line);
+}
+
+.split.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}

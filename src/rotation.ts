@@ -43,6 +43,8 @@ export interface Settings {
   keepPairs?: boolean;
   /** The first four play the opening games together; the last one's winners stay for one more. Default on. */
   openingFour?: boolean;
+  /** The organiser picks the first game's teams instead of the app. Default on. */
+  manualFirstGame?: boolean;
   /** Bumped when default rules change, so saved sessions can be migrated. */
   rulesVersion?: number;
 }
@@ -63,6 +65,7 @@ export const defaultSettings: Settings = {
   pairs: [],
   keepPairs: true,
   openingFour: true,
+  manualFirstGame: true,
   rulesVersion: 3,
 };
 
@@ -207,14 +210,39 @@ export function pairUp(state: SessionState, a: string, b: string): SessionState 
   return keepPairsTogether({ ...state, settings: { ...state.settings, pairs: [...pairs, [a, b]] } });
 }
 
-/** Starts a game with the first 4 in the queue if the court is free. */
+/** True while 4 or more people are here but the organiser hasn't set the first game's teams yet. */
+export function awaitingFirstTeams(state: SessionState): boolean {
+  return !state.court && state.queue.length >= 4 && state.history.length === 0 && state.settings.manualFirstGame !== false;
+}
+
+/** The first 4 in line, who play the first game. */
+export function firstFour(state: SessionState): string[] {
+  return state.queue.slice(0, 4);
+}
+
+const openingGames = (state: SessionState) =>
+  state.history.length === 0 && state.settings.openingFour !== false ? state.settings.maxConsecutive : 0;
+
+/** Starts a game with the first 4 in the queue if the court is free (the first game waits for the organiser). */
 export function fillCourt(state: SessionState, now: number): SessionState {
-  if (state.court || state.queue.length < 4) return state;
+  if (state.court || state.queue.length < 4 || awaitingFirstTeams(state)) return state;
   const { group: four, rest } = pickGroup(state, state.queue, 4);
   const [teamA, teamB] = makeTeams(state, four);
-  const opening =
-    state.history.length === 0 && state.settings.openingFour !== false ? state.settings.maxConsecutive : 0;
-  return { ...state, queue: rest, court: { teamA, teamB, startedAt: now }, opening };
+  return { ...state, queue: rest, court: { teamA, teamB, startedAt: now }, opening: openingGames(state) };
+}
+
+/** Starts the first game with teams the organiser chose. Both teams must be made of the first 4 in line. */
+export function startFirstGame(state: SessionState, teamA: Team, teamB: Team, now: number): SessionState {
+  if (!awaitingFirstTeams(state)) return state;
+  const chosen = [...teamA, ...teamB];
+  const four = firstFour(state);
+  if (new Set(chosen).size !== 4 || !chosen.every((id) => four.includes(id))) return state;
+  return {
+    ...state,
+    queue: state.queue.filter((id) => !chosen.includes(id)),
+    court: { teamA, teamB, startedAt: now },
+    opening: openingGames(state),
+  };
 }
 
 export function recordResult(state: SessionState, winner: "A" | "B", now: number): SessionState {

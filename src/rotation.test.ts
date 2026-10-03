@@ -7,6 +7,8 @@ import {
   leave,
   newSession,
   onCourt,
+  awaitingFirstTeams,
+  startFirstGame,
   pairUp,
   recordResult,
   type SessionState,
@@ -16,12 +18,14 @@ function arrive(state: SessionState, ...names: string[]): SessionState {
   return names.reduce((s, n, i) => checkIn(s, n, n, i), state);
 }
 
-const noOpening = { ...defaultSettings, openingFour: false };
+// Most tests run with the first game starting by itself; "first game teams" tests use the default.
+const auto = { ...defaultSettings, manualFirstGame: false };
+const noOpening = { ...auto, openingFour: false };
 const sorted = (ids: string[]) => [...ids].sort();
 
 describe("rotation", () => {
   it("waits until 4 players are present, then starts with the first 4", () => {
-    let s = arrive(newSession(), "p1", "p2", "p3");
+    let s = arrive(newSession(auto), "p1", "p2", "p3");
     expect(s.court).toBeNull();
     s = arrive(s, "p4", "p5");
     expect(sorted(onCourt(s))).toEqual(["p1", "p2", "p3", "p4"]);
@@ -29,13 +33,13 @@ describe("rotation", () => {
   });
 
   it("late arrivals join the back of the line", () => {
-    let s = arrive(newSession(), "p1", "p2", "p3", "p4", "p5");
+    let s = arrive(newSession(auto), "p1", "p2", "p3", "p4", "p5");
     s = checkIn(s, "late", "late", 100);
     expect(s.queue).toEqual(["p5", "late"]);
   });
 
   it("lets a waiting player leave", () => {
-    let s = arrive(newSession(), "p1", "p2", "p3", "p4", "p5");
+    let s = arrive(newSession(auto), "p1", "p2", "p3", "p4", "p5");
     s = leave(s, "p5");
     expect(s.queue).toEqual([]);
     expect(s.players.p5).toBeUndefined();
@@ -43,7 +47,7 @@ describe("rotation", () => {
   });
 
   it("with exactly 4 players everyone keeps playing", () => {
-    let s = arrive(newSession(), "p1", "p2", "p3", "p4");
+    let s = arrive(newSession(auto), "p1", "p2", "p3", "p4");
     for (let i = 0; i < 6; i++) {
       s = recordResult(s, i % 2 === 0 ? "A" : "B", i);
       expect(onCourt(s)).toHaveLength(4);
@@ -51,7 +55,7 @@ describe("rotation", () => {
   });
 
   describe("opening games and game 3", () => {
-    const started = () => arrive(newSession(), "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8");
+    const started = () => arrive(newSession(auto), "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8");
 
     it("the first four play two games against each other before anyone else comes on", () => {
       let s = started();
@@ -212,7 +216,7 @@ describe("rotation", () => {
 
     it("a pair is never split by the edge of a group: the single player before them waits one game", () => {
       // x1 would play next with S, but S & P are side by side, so S & P take the places and x1 waits.
-      let s = arrive(newSession(), "p1", "p2", "p3", "p4", "x1", "S", "P", "x2");
+      let s = arrive(newSession(auto), "p1", "p2", "p3", "p4", "x1", "S", "P", "x2");
       s = pairUp(s, "S", "P");
       s = recordResult(s, "A", 10);
       s = recordResult(s, "A", 20); // game 3: opening winners vs the next two
@@ -224,6 +228,48 @@ describe("rotation", () => {
       let s = arrive(newSession(noOpening), "p1", "p2", "p3", "p4", "S", "P", "Q");
       s = pairUp(s, "S", "P");
       expect(pairUp(s, "S", "Q")).toBe(s);
+    });
+  });
+
+  describe("setting the first game's teams", () => {
+    it("doesn't start by itself: it waits for the organiser to set the teams", () => {
+      const s = arrive(newSession(), "a", "b", "c", "d", "e");
+      expect(s.court).toBeNull();
+      expect(awaitingFirstTeams(s)).toBe(true);
+      expect(s.queue).toEqual(["a", "b", "c", "d", "e"]);
+    });
+
+    it("starts the game with exactly the teams chosen, and the opening games follow", () => {
+      let s = arrive(newSession(), "a", "b", "c", "d", "e", "f");
+      s = startFirstGame(s, ["a", "d"], ["b", "c"], 100);
+      expect(s.court!.teamA).toEqual(["a", "d"]);
+      expect(s.court!.teamB).toEqual(["b", "c"]);
+      expect(s.queue).toEqual(["e", "f"]);
+      expect(s.opening).toBe(2);
+      expect(awaitingFirstTeams(s)).toBe(false);
+      // Game 2 is the same teams again, then the normal rotation takes over.
+      s = recordResult(s, "A", 110);
+      expect(s.court!.teamA).toEqual(["a", "d"]);
+    });
+
+    it("only accepts the first four in line, each once", () => {
+      const s = arrive(newSession(), "a", "b", "c", "d", "e");
+      expect(startFirstGame(s, ["a", "e"], ["b", "c"], 1)).toBe(s);
+      expect(startFirstGame(s, ["a", "a"], ["b", "c"], 1)).toBe(s);
+    });
+
+    it("only the first game is set by hand; later games are made automatically", () => {
+      let s = arrive(newSession(), "a", "b", "c", "d", "e", "f", "g", "h");
+      s = startFirstGame(s, ["a", "b"], ["c", "d"], 1);
+      s = recordResult(s, "A", 2);
+      s = recordResult(s, "A", 3);
+      s = recordResult(s, "A", 4); // game 3 finished: game 4 is set up without asking
+      expect(s.court).not.toBeNull();
+    });
+
+    it("can be switched off", () => {
+      const s = arrive(newSession({ ...defaultSettings, manualFirstGame: false }), "a", "b", "c", "d");
+      expect(s.court).not.toBeNull();
     });
   });
 });

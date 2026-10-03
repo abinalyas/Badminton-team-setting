@@ -10,8 +10,13 @@ line, so you don't have to work out by hand who plays next.
 
 1. **Check in on arrival.** Each player joins the back of the line. Earlier
    arrivals play earlier.
-2. **Opening games.** When 4 people are present, the first 4 in line go on
-   court and play **two games against each other**. Nobody else comes on yet.
+2. **Opening games.** When 4 people are present, the first 4 in line are
+   shown and **you choose the two teams** for the first game (tap one of the 3
+   ways to split them up, then **Start game**). If a usual pair is among them,
+   that split is suggested. They then play **two games against each other** with
+   those teams. Nobody else comes on yet. Only the first game is set by hand;
+   later games are made by the app. You can turn this off in Rules to let the
+   app set the first teams too.
 3. **Game 3: the only place winning matters.** The winners of game 2 stay on
    and play the next 2 in line. The losers of game 2 go to the back of the line.
 4. **After game 3, only the game 2 winners come off.** The 2 people who came on

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import {
+  awaitingFirstTeams,
   checkIn,
   comingOnCount,
   compromises,
   defaultSettings,
+  firstFour,
   leave,
   newSession,
   pairUp,
   partnerOf,
   recordResult,
+  startFirstGame,
   type SessionState,
   type Team,
 } from "./rotation";
@@ -95,6 +98,7 @@ export default function App() {
   const [undoStack, setUndoStack] = useState<SessionState[]>([]);
   const [roster, setRoster] = useState<string[]>(() => mergeRoster(load<string[]>(ROSTER_KEY, [])));
   const [choice, setChoice] = useState("");
+  const [split, setSplit] = useState<number | null>(null);
   const [pairA, setPairA] = useState("");
   const [pairB, setPairB] = useState("");
   const [name, setName] = useState("");
@@ -151,6 +155,24 @@ export default function App() {
   const present = Object.values(state.players);
   const compromising = compromises(state);
   const goingOn = comingOnCount(state);
+
+  // First game: the organiser picks which two of the first four play together.
+  const settingTeams = awaitingFirstTeams(state);
+  const four = settingTeams ? firstFour(state) : [];
+  const splits: Array<[Team, Team]> = four.length === 4
+    ? [
+        [[four[0], four[1]], [four[2], four[3]]],
+        [[four[0], four[2]], [four[1], four[3]]],
+        [[four[0], four[3]], [four[1], four[2]]],
+      ]
+    : [];
+  // Suggest the split that keeps the most usual pairs together, if any.
+  const pairScore = ([a, b]: [Team, Team]) =>
+    [a, b].reduce((n, team) => n + (partnerOf(state, team[0]) === team[1] ? 1 : 0), 0);
+  const scores = splits.map(pairScore);
+  const bestScore = Math.max(0, ...scores);
+  const suggested = bestScore > 0 && scores.filter((n) => n === bestScore).length === 1 ? scores.indexOf(bestScore) : null;
+  const chosenSplit = split ?? suggested;
   const needed = 4 - present.length;
 
   return (
@@ -191,6 +213,37 @@ export default function App() {
               </button>
               <button onClick={() => update(recordResult(state, "B", Date.now()))}>
                 {teamLabel(state.court.teamB)}
+              </button>
+            </div>
+          </>
+        ) : settingTeams ? (
+          <>
+            <p className="muted">Set the first game's teams. Tap how the first four split up:</p>
+            <div className="splits">
+              {splits.map(([a, b], i) => (
+                <button
+                  key={i}
+                  className={`split ${chosenSplit === i ? "selected" : ""}`}
+                  onClick={() => setSplit(i)}
+                  aria-pressed={chosenSplit === i}
+                >
+                  <span>{teamLabel(a)}</span>
+                  <span className="vs">vs</span>
+                  <span>{teamLabel(b)}</span>
+                  {suggested === i && <span className="small muted">usual pair together</span>}
+                </button>
+              ))}
+            </div>
+            <div className="row">
+              <button
+                disabled={chosenSplit === null}
+                onClick={() => {
+                  if (chosenSplit === null) return;
+                  update(startFirstGame(state, splits[chosenSplit][0], splits[chosenSplit][1], Date.now()));
+                  setSplit(null);
+                }}
+              >
+                Start game
               </button>
             </div>
           </>
@@ -345,6 +398,14 @@ export default function App() {
       <section className="card">
         <h2>Rules</h2>
         <label className="row between">
+          <span>I set the first game's teams</span>
+          <input
+            type="checkbox"
+            checked={state.settings.manualFirstGame !== false}
+            onChange={(e) => update({ ...state, settings: { ...state.settings, manualFirstGame: e.target.checked } })}
+          />
+        </label>
+        <label className="row between">
           <span>First four play the opening games</span>
           <input
             type="checkbox"
@@ -386,6 +447,7 @@ export default function App() {
           </button>
           {(state.settings.maxConsecutive !== defaultSettings.maxConsecutive ||
             state.settings.keepPairs === false ||
+            state.settings.manualFirstGame === false ||
             state.settings.openingFour === false) && (
             <button
               className="ghost"
